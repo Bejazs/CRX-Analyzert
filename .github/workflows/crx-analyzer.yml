@@ -1,0 +1,75 @@
+name: CRX Analyzer Workflow
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  analyze-extension:
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.issue.title, 'Analyze Extension:')
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install crx-analyzer
+        run: |
+          pip install git+https://github.com/rileydakota/crx-analyzer.git
+
+      - name: Parse Issue Body for ID and Browser
+        id: parse
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          # Extract ID and Browser from the issue body safely using environment variables
+          # Body format expected:
+          # **ID:** <id>
+          # **Browser:** <browser>
+
+          # Use grep and awk to extract values, removing any carriage returns
+          EXT_ID=$(echo "$ISSUE_BODY" | grep -oP '\*\*ID:\*\* \K.*' | tr -d '\r')
+          BROWSER=$(echo "$ISSUE_BODY" | grep -oP '\*\*Browser:\*\* \K.*' | tr -d '\r')
+
+          echo "ext_id=$EXT_ID" >> $GITHUB_ENV
+          echo "browser=$BROWSER" >> $GITHUB_ENV
+          echo "Parsed ID: $EXT_ID, Browser: $BROWSER"
+
+      - name: Run crx-analyzer
+        id: run_analyzer
+        env:
+          EXT_ID: ${{ env.ext_id }}
+          BROWSER: ${{ env.browser }}
+        run: |
+          echo "Running analysis for ID: $EXT_ID on Browser: $BROWSER"
+
+          # Run the analyzer and capture output to a file
+          # We use a temporary file to avoid issues with multi-line outputs in env variables
+          crx-analyzer analyze --id "$EXT_ID" --browser "$BROWSER" --output pretty > analysis_result.txt 2>&1 || echo "Error running crx-analyzer" >> analysis_result.txt
+
+          # Cat the result for action logs
+          cat analysis_result.txt
+
+      - name: Comment on Issue with Results
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const result = fs.readFileSync('analysis_result.txt', 'utf8');
+
+            const commentBody = `### CRX Analyzer Results\n\n\`\`\`text\n${result}\n\`\`\`\n\n_This analysis was run automatically via GitHub Actions._`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });
