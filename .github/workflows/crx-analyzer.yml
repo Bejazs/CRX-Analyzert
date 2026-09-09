@@ -55,6 +55,9 @@ jobs:
           # We use a temporary file to avoid issues with multi-line outputs in env variables
           crx-analyzer analyze --id "$EXT_ID" --browser "$BROWSER" --output pretty > analysis_result.txt 2>&1 || echo "Error running crx-analyzer" >> analysis_result.txt
 
+          # Strip ANSI color codes to ensure clean markdown rendering in the issue comment
+          sed -i 's/\x1b\[[0-9;]*m//g' analysis_result.txt
+
           # Cat the result for action logs
           cat analysis_result.txt
 
