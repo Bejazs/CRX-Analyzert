@@ -35,12 +35,21 @@ jobs:
           # **ID:** <id>
           # **Browser:** <browser>
 
-          # Use grep and awk to extract values, removing any carriage returns
-          EXT_ID=$(echo "$ISSUE_BODY" | grep -oP '\*\*ID:\*\* \K.*' | tr -d '\r')
-          BROWSER=$(echo "$ISSUE_BODY" | grep -oP '\*\*Browser:\*\* \K.*' | tr -d '\r')
+          # Use grep and awk to extract values, removing any carriage returns and newlines
+          # We also use head -n 1 to ensure only the first match is taken
+          EXT_ID=$(echo "$ISSUE_BODY" | grep -oP '\*\*ID:\*\* \K.*' | head -n 1 | tr -d '\r\n')
+          BROWSER=$(echo "$ISSUE_BODY" | grep -oP '\*\*Browser:\*\* \K.*' | head -n 1 | tr -d '\r\n')
 
-          echo "ext_id=$EXT_ID" >> $GITHUB_ENV
-          echo "browser=$BROWSER" >> $GITHUB_ENV
+          EOF_DELIM=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+
+          echo "ext_id<<$EOF_DELIM" >> $GITHUB_ENV
+          echo "$EXT_ID" >> $GITHUB_ENV
+          echo "$EOF_DELIM" >> $GITHUB_ENV
+
+          echo "browser<<$EOF_DELIM" >> $GITHUB_ENV
+          echo "$BROWSER" >> $GITHUB_ENV
+          echo "$EOF_DELIM" >> $GITHUB_ENV
+
           echo "Parsed ID: $EXT_ID, Browser: $BROWSER"
 
       - name: Run crx-analyzer
